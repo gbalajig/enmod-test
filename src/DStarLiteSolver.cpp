@@ -1,3 +1,5 @@
+// src/DStarLiteSolver.cpp
+
 #include "enmod/DStarLiteSolver.h"
 #include "enmod/Logger.h"
 #include <algorithm>
@@ -45,7 +47,7 @@ void DStarLiteSolver::updateVertex(const Position& p) {
             Position successor = {p.row + dr[i], p.col + dc[i]};
             if (dynamic_grid.isWalkable(successor.row, successor.col)) {
                 if (maze.find(successor) == maze.end()) maze[successor] = DStarNode();
-                Cost move_cost = dynamic_grid.getMoveCost(p);
+                Cost move_cost = dynamic_grid.getMoveCost(successor);
                 double cost_val = (move_cost.smoke * 1000) + (move_cost.time * 10) + (move_cost.distance * 1);
                 min_rhs = std::min(min_rhs, maze[successor].g + cost_val);
             }
@@ -53,13 +55,27 @@ void DStarLiteSolver::updateVertex(const Position& p) {
         maze[p].rhs = min_rhs;
     }
 
+    // if p is in the open set, remove it
+    // (this is not efficient, but it is correct)
+    std::priority_queue<std::pair<Key, Position>, std::vector<std::pair<Key, Position>>, std::greater<std::pair<Key, Position>>> new_open_set;
+    while (!open_set.empty())
+    {
+        if (open_set.top().second.row != p.row || open_set.top().second.col != p.col)
+        {
+            new_open_set.push(open_set.top());
+        }
+        open_set.pop();
+    }
+    open_set = new_open_set;
+
     if (maze[p].g != maze[p].rhs) {
         open_set.push({calculateKey(p), p});
     }
 }
 
+
 void DStarLiteSolver::computeShortestPath() {
-    while (!open_set.empty() && (open_set.top().first < calculateKey(start_pos) || maze[start_pos].rhs != maze[start_pos].g)) {
+    while (!open_set.empty() && (open_set.top().first < calculateKey(start_pos) || maze[start_pos].g != maze[start_pos].rhs)) {
         Key k_old = open_set.top().first;
         Position u = open_set.top().second;
         open_set.pop();

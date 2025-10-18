@@ -6,7 +6,8 @@ enum class CellType { EMPTY, WALL, START, EXIT, SMOKE, FIRE };
 struct Position {
     int row, col;
     bool operator==(const Position& other) const { return row == other.row && col == other.col; }
-    bool operator<(const Position& other) const { 
+    bool operator!=(const Position& other) const { return !(*this == other); } // THE FIX
+    bool operator<(const Position& other) const {
         if (row != other.row) return row < other.row;
         return col < other.col;
     }
