@@ -5,7 +5,9 @@
 
 HybridDPRLSolver::HybridDPRLSolver(const Grid& grid_ref) 
     : Solver(grid_ref, "HybridDPRLSim"), current_mode(EvacuationMode::NORMAL) {
-    // Pre-train the RL agent
+    
+    Cost::current_mode = EvacuationMode::NORMAL;
+        // Pre-train the RL agent
     rl_solver = std::make_unique<QLearningSolver>(grid_ref);
     rl_solver->train(5000); // Pre-train with 5000 episodes
 }
@@ -78,6 +80,7 @@ Direction HybridDPRLSolver::getNextMove(const Position& current_pos, const Grid&
 }
 
 void HybridDPRLSolver::run() {
+    Cost::current_mode = EvacuationMode::NORMAL;
     Grid dynamic_grid = grid;
     Position current_pos = dynamic_grid.getStartPosition();
     total_cost = {0, 0, 0};
@@ -92,7 +95,6 @@ void HybridDPRLSolver::run() {
             }
         }
         
-        // getNextMove internally calls assessThreatAndSetMode
         Direction move_dir = getNextMove(current_pos, dynamic_grid);
 
         history.push_back({t, dynamic_grid, current_pos, "Planning...", total_cost, current_mode});
@@ -102,13 +104,20 @@ void HybridDPRLSolver::run() {
             break;
         }
 
+        // --- THE FIX: Validate the next position before moving ---
+        Position next_move = dynamic_grid.getNextPosition(current_pos, move_dir);
+        if (!dynamic_grid.isWalkable(next_move.row, next_move.col)) {
+            next_move = current_pos; // Stay put if the move is invalid
+            move_dir = Direction::STAY;
+        }
+        // --- END FIX ---
+
         std::string action = "STAY";
         if (move_dir == Direction::UP) action = "UP";
         else if (move_dir == Direction::DOWN) action = "DOWN";
         else if (move_dir == Direction::LEFT) action = "LEFT";
         else if (move_dir == Direction::RIGHT) action = "RIGHT";
 
-        // Check for failure condition
         if (move_dir == Direction::STAY) {
             BIDP check_planner(dynamic_grid);
             check_planner.run();
@@ -121,7 +130,7 @@ void HybridDPRLSolver::run() {
         
         history.back().action = action;
         total_cost = total_cost + dynamic_grid.getMoveCost(current_pos);
-        current_pos = dynamic_grid.getNextPosition(current_pos, move_dir);
+        current_pos = next_move;
     }
 
     if(history.empty() || (history.back().action.find("SUCCESS") == std::string::npos && history.back().action.find("FAILURE") == std::string::npos)){

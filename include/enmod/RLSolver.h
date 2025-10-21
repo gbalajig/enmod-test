@@ -18,6 +18,7 @@ public:
     virtual void update(const Position& s, Direction a, double r, const Position& s_next, Direction a_next) = 0;
     virtual Direction chooseAction(const Position& state) = 0;
     const Policy& getPolicy(); 
+    const ValueTable& getPolicyValueTable() const { return value_table; }
 
 protected:
     void generatePolicyFromValueTable();

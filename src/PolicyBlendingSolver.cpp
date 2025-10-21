@@ -6,6 +6,7 @@
 
 PolicyBlendingSolver::PolicyBlendingSolver(const Grid& grid_ref) 
     : Solver(grid_ref, "PolicyBlendingSim"), current_mode(EvacuationMode::NORMAL) {
+    Cost::current_mode = EvacuationMode::NORMAL;
     rl_solver = std::make_unique<QLearningSolver>(grid_ref);
     rl_solver->train(5000);
 }
@@ -41,6 +42,7 @@ void PolicyBlendingSolver::assessThreatAndSetMode(const Position& current_pos, c
 }
 
 void PolicyBlendingSolver::run() {
+    Cost::current_mode = EvacuationMode::NORMAL;
     Grid dynamic_grid = grid;
     Position current_pos = dynamic_grid.getStartPosition();
     total_cost = {0, 0, 0};
@@ -78,7 +80,6 @@ void PolicyBlendingSolver::run() {
             step_planner.run();
             const auto& cost_map = step_planner.getCostMap();
             
-            // Get DP move
             Cost best_neighbor_cost_dp = cost_map[current_pos.row][current_pos.col];
             Position next_move_dp = current_pos;
             std::string action_dp = "STAY";
@@ -102,12 +103,11 @@ void PolicyBlendingSolver::run() {
                 next_move = next_move_dp;
                 action = action_dp;
             } else { // ALERT mode
-                // Get RL move
                 Direction move_dir_rl = rl_solver->chooseAction(current_pos);
                 Position next_move_rl = dynamic_grid.getNextPosition(current_pos, move_dir_rl);
                 
-                // Blend: choose the move that leads to a state with lower DP cost
-                if (cost_map[next_move_rl.row][next_move_rl.col] < best_neighbor_cost_dp) {
+                if (dynamic_grid.isWalkable(next_move_rl.row, next_move_rl.col) &&
+                    cost_map[next_move_rl.row][next_move_rl.col] < best_neighbor_cost_dp) {
                     next_move = next_move_rl;
                     if (move_dir_rl == Direction::UP) action = "UP (RL-Blend)";
                     else if (move_dir_rl == Direction::DOWN) action = "DOWN (RL-Blend)";
@@ -119,6 +119,13 @@ void PolicyBlendingSolver::run() {
                 }
             }
         }
+        
+        // --- THE FIX: Validate the next position before moving ---
+        if (!dynamic_grid.isWalkable(next_move.row, next_move.col)) {
+            next_move = current_pos; // Stay put if the move is invalid
+            action = "STAY (Invalid Move)";
+        }
+        // --- END FIX ---
         
         history.back().action = action;
         total_cost = total_cost + dynamic_grid.getMoveCost(current_pos);

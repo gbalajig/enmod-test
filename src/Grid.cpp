@@ -43,13 +43,20 @@ std::string Grid::getSmokeIntensity(const Position& pos) const { if (smoke_inten
 
 void Grid::addHazard(const json& event_config) {
     Position pos = {event_config.at("position").at("row"), event_config.at("position").at("col")};
-    if (isValid(pos.row, pos.col)) {
+    
+    std::string type = event_config.value("type", "");
+
+    if (type == "fire" && isValid(pos.row, pos.col)) {
         grid_map[pos.row][pos.col] = CellType::FIRE;
         std::string size = event_config.value("size", "small");
         int radius = 1;
         if(size == "medium") radius = 2;
         if(size == "large") radius = 3;
         active_fires.push_back({pos, size, radius});
+    } 
+    else if (type == "path_block" && isValid(pos.row, pos.col)) {
+        // This will now work correctly
+        setCellUnwalkable(pos);
     }
 }
 

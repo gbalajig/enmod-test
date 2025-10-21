@@ -3,6 +3,7 @@
 #include "enmod/Grid.h"
 #include "enmod/Solver.h"
 #include "enmod/HtmlReportGenerator.h"
+#include "enmod/Cost.h"
 // Static DP Solvers
 #include "enmod/BIDP.h"
 #include "enmod/FIDP.h"
@@ -31,6 +32,10 @@
 #include "enmod/AStarSolver.h"
 #include "enmod/DynamicAStarSolver.h"
 #include "enmod/DStarLiteSolver.h"
+#include "enmod/RLEnhancedAStarSolver.h"
+#include "enmod/DynamicHPASolver.h"
+#include "enmod/ADASolver.h"
+#include "enmod/DQNSolver.h"
 
 #include <iostream>
 #include <vector>
@@ -47,6 +52,7 @@
 #endif
 
 void runComparisonScenario(const json& config, const std::string& report_path, std::vector<Result>& results) {
+    Cost::current_mode = EvacuationMode::NORMAL;
     Grid grid(config);
     std::cout << "\n===== Running Comparison Scenario: " << grid.getName() << " (" << grid.getRows() << "x" << grid.getCols() << ") =====\n";
     std::string scenario_report_path = report_path + "/" + grid.getName();
@@ -81,6 +87,10 @@ void runComparisonScenario(const json& config, const std::string& report_path, s
     solvers.push_back(std::make_unique<InterlacedSolver>(grid));
     solvers.push_back(std::make_unique<HierarchicalSolver>(grid));
     solvers.push_back(std::make_unique<PolicyBlendingSolver>(grid));
+    solvers.push_back(std::make_unique<RLEnhancedAStarSolver>(grid));
+    solvers.push_back(std::make_unique<DynamicHPASolver>(grid));
+    solvers.push_back(std::make_unique<ADASolver>(grid)); 
+    solvers.push_back(std::make_unique<DQNSolver>(grid));
 
 
     for (const auto& solver : solvers) {
@@ -114,11 +124,11 @@ int main() {
 
         // --- PHASE 1: Run the comprehensive comparison of all solvers ---
         std::vector<json> scenarios;
-        scenarios.push_back(ScenarioGenerator::generate(5, "5x5"));
+      //  scenarios.push_back(ScenarioGenerator::generate(5, "5x5"));
         scenarios.push_back(ScenarioGenerator::generate(10, "10x10"));
-        scenarios.push_back(ScenarioGenerator::generate(15, "15x15"));
         scenarios.push_back(ScenarioGenerator::generate(20, "20x20"));
-        scenarios.push_back(ScenarioGenerator::generate(25, "25x25"));
+        scenarios.push_back(ScenarioGenerator::generate(30, "30x30"));
+     //   scenarios.push_back(ScenarioGenerator::generate(40, "40x40"));
 
         std::vector<Result> all_results;
         for (const auto& config : scenarios) {

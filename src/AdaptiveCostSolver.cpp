@@ -37,6 +37,7 @@ void AdaptiveCostSolver::assessThreatAndSetMode(const Position& current_pos, con
 }
 
 void AdaptiveCostSolver::run() {
+    Cost::current_mode = EvacuationMode::NORMAL;
     Grid dynamic_grid = grid;
     Position current_pos = dynamic_grid.getStartPosition();
     total_cost = {0, 0, 0};

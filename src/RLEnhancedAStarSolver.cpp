@@ -1,4 +1,4 @@
-#include "enmod/DynamicAStarSolver.h"
+#include "enmod/RLEnhancedAStarSolver.h"
 #include "enmod/Logger.h"
 #include <queue>
 #include <vector>
@@ -7,30 +7,44 @@
 #include <algorithm>
 
 // A* Node for the priority queue
-struct AStarNode {
+struct RLAStarNode {
     Position pos;
     Cost cost;
     double heuristic;
 
-    bool operator>(const AStarNode& other) const {
+    bool operator>(const RLAStarNode& other) const {
+        // A* priority is f(n) = g(n) + h(n). Here, g(n) is represented by cost.time.
         return (cost.time + heuristic) > (other.cost.time + other.heuristic);
     }
 };
 
-// Helper function to run A* algorithm
-std::vector<Position> run_astar(const Grid& grid, const Position& start_pos) {
-    std::priority_queue<AStarNode, std::vector<AStarNode>, std::greater<AStarNode>> open_set;
+// Helper function to run RL-enhanced A* algorithm
+std::vector<Position> run_rl_enhanced_astar(const Grid& grid, const Position& start_pos, QLearningSolver* rl_solver) {
+    std::priority_queue<RLAStarNode, std::vector<RLAStarNode>, std::greater<RLAStarNode>> open_set;
     std::map<Position, Position> came_from;
     std::map<Position, Cost> g_score;
 
     g_score[start_pos] = {0, 0, 0};
 
     auto heuristic = [&](const Position& p) {
-        double h = std::numeric_limits<double>::max();
-        for (const auto& exit_pos : grid.getExitPositions()) {
-            h = std::min(h, (double)std::abs(p.row - exit_pos.row) + std::abs(p.col - exit_pos.col));
+        // Use the trained Q-Learning model to get a heuristic.
+        // A higher Q-value means a better state, so a lower heuristic cost.
+        // We use the negative of the max Q-value for the state.
+        const auto& value_table = rl_solver->getPolicyValueTable();
+        auto it = value_table.find(p);
+
+        if (it != value_table.end() && !it->second.empty()) {
+            double max_q_value = *std::max_element(it->second.begin(), it->second.end());
+            // Normalize or scale if necessary, for now, simple negation.
+            return -max_q_value;
         }
-        return h;
+
+        // Fallback to Manhattan distance if the state is not in the Q-table
+        double h_manhattan = std::numeric_limits<double>::max();
+        for (const auto& exit_pos : grid.getExitPositions()) {
+            h_manhattan = std::min(h_manhattan, (double)std::abs(p.row - exit_pos.row) + std::abs(p.col - exit_pos.col));
+        }
+        return h_manhattan;
     };
 
     open_set.push({start_pos, {0, 0, 0}, heuristic(start_pos)});
@@ -68,13 +82,20 @@ std::vector<Position> run_astar(const Grid& grid, const Position& start_pos) {
             }
         }
     }
-    return {};
+    return {}; // No path found
 }
 
-DynamicAStarSolver::DynamicAStarSolver(const Grid& grid_ref)
-    : Solver(grid_ref, "DynamicAStarSim"), current_mode(EvacuationMode::NORMAL) {}
 
-void DynamicAStarSolver::assessThreatAndSetMode(const Position& current_pos, const Grid& current_grid) {
+RLEnhancedAStarSolver::RLEnhancedAStarSolver(const Grid& grid_ref)
+    : Solver(grid_ref, "RLEnhancedAStar"), current_mode(EvacuationMode::NORMAL) {
+    Cost::current_mode = EvacuationMode::NORMAL;
+    rl_solver = std::make_unique<QLearningSolver>(grid_ref);
+    // Pre-train the RL agent on the initial grid to build the value table
+    rl_solver->train(2000); 
+}
+
+void RLEnhancedAStarSolver::assessThreatAndSetMode(const Position& current_pos, const Grid& current_grid) {
+    // This function is identical to other dynamic solvers
     const auto& events = current_grid.getConfig().value("dynamic_events", json::array());
     current_mode = EvacuationMode::NORMAL;
 
@@ -91,18 +112,9 @@ void DynamicAStarSolver::assessThreatAndSetMode(const Position& current_pos, con
             }
         }
     }
-
-    int dr[] = {-1, 1, 0, 0};
-    int dc[] = {0, 0, -1, 1};
-    for(int i = 0; i < 4; ++i) {
-        Position neighbor = {current_pos.row + dr[i], current_pos.col + dc[i]};
-        if(current_grid.getSmokeIntensity(neighbor) == "heavy"){
-             if (current_mode != EvacuationMode::PANIC) current_mode = EvacuationMode::ALERT;
-        }
-    }
 }
 
-void DynamicAStarSolver::run() {
+void RLEnhancedAStarSolver::run() {
     Cost::current_mode = EvacuationMode::NORMAL;
     Grid dynamic_grid = grid;
     Position current_pos = dynamic_grid.getStartPosition();
@@ -128,7 +140,7 @@ void DynamicAStarSolver::run() {
             break;
         }
 
-        auto path = run_astar(dynamic_grid, current_pos);
+        auto path = run_rl_enhanced_astar(dynamic_grid, current_pos, rl_solver.get());
         Position next_move = current_pos;
         std::string action = "STAY";
 
@@ -159,12 +171,12 @@ void DynamicAStarSolver::run() {
     Cost::current_mode = EvacuationMode::NORMAL;
 }
 
-Cost DynamicAStarSolver::getEvacuationCost() const {
+Cost RLEnhancedAStarSolver::getEvacuationCost() const {
     return total_cost;
 }
 
-void DynamicAStarSolver::generateReport(std::ofstream& report_file) const {
-    report_file << "<h2>Simulation History (Turn-by-Turn using A* Planner)</h2>\n";
+void RLEnhancedAStarSolver::generateReport(std::ofstream& report_file) const {
+    report_file << "<h2>Simulation History (RL-Enhanced A* Solver)</h2>\n";
     for (const auto& step : history) {
         std::string mode_str;
         switch(step.mode){

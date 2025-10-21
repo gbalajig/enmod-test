@@ -37,6 +37,7 @@ void DynamicAVISolver::assessThreatAndSetMode(const Position& current_pos, const
 }
 
 void DynamicAVISolver::run() {
+    Cost::current_mode = EvacuationMode::NORMAL;
     Grid dynamic_grid = grid;
     Position current_pos = dynamic_grid.getStartPosition();
     total_cost = {0, 0, 0};

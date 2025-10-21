@@ -1,4 +1,4 @@
-#include "enmod/DynamicAStarSolver.h"
+#include "enmod/ADASolver.h"
 #include "enmod/Logger.h"
 #include <queue>
 #include <vector>
@@ -7,39 +7,45 @@
 #include <algorithm>
 
 // A* Node for the priority queue
-struct AStarNode {
+struct ADAStarNode {
     Position pos;
     Cost cost;
-    double heuristic;
+    double f_score; // g_score + heuristic
 
-    bool operator>(const AStarNode& other) const {
-        return (cost.time + heuristic) > (other.cost.time + other.heuristic);
+    bool operator>(const ADAStarNode& other) const {
+        return f_score > other.f_score;
     }
 };
 
-// Helper function to run A* algorithm
-std::vector<Position> run_astar(const Grid& grid, const Position& start_pos) {
-    std::priority_queue<AStarNode, std::vector<AStarNode>, std::greater<AStarNode>> open_set;
+// Helper function to run A* algorithm with an inflated heuristic
+std::vector<Position> run_anytime_astar(const Grid& grid, const Position& start_pos, double epsilon) {
+    if (grid.getExitPositions().empty()) return {};
+
+    Position goal_pos = grid.getExitPositions()[0]; // Simple goal selection
+
+    std::priority_queue<ADAStarNode, std::vector<ADAStarNode>, std::greater<ADAStarNode>> open_set;
     std::map<Position, Position> came_from;
     std::map<Position, Cost> g_score;
+
+    for(int r = 0; r < grid.getRows(); ++r) {
+        for (int c = 0; c < grid.getCols(); ++c) {
+            g_score[{r,c}] = {}; // Initialize with max cost
+        }
+    }
 
     g_score[start_pos] = {0, 0, 0};
 
     auto heuristic = [&](const Position& p) {
-        double h = std::numeric_limits<double>::max();
-        for (const auto& exit_pos : grid.getExitPositions()) {
-            h = std::min(h, (double)std::abs(p.row - exit_pos.row) + std::abs(p.col - exit_pos.col));
-        }
-        return h;
+        return static_cast<double>(std::abs(p.row - goal_pos.row) + std::abs(p.col - goal_pos.col));
     };
 
-    open_set.push({start_pos, {0, 0, 0}, heuristic(start_pos)});
+    open_set.push({start_pos, {0, 0, 0}, epsilon * heuristic(start_pos)});
 
     while (!open_set.empty()) {
         Position current = open_set.top().pos;
         open_set.pop();
 
-        if (grid.isExit(current.row, current.col)) {
+        if (current == goal_pos) {
             std::vector<Position> path;
             Position temp = current;
             while (came_from.count(temp)) {
@@ -60,21 +66,23 @@ std::vector<Position> run_astar(const Grid& grid, const Position& start_pos) {
             if (grid.isWalkable(neighbor.row, neighbor.col)) {
                 Cost tentative_g_score = g_score[current] + grid.getMoveCost(neighbor);
 
-                if (!g_score.count(neighbor) || tentative_g_score < g_score[neighbor]) {
+                if (tentative_g_score < g_score[neighbor]) {
                     came_from[neighbor] = current;
                     g_score[neighbor] = tentative_g_score;
-                    open_set.push({neighbor, tentative_g_score, heuristic(neighbor)});
+                    double f_score = tentative_g_score.time + epsilon * heuristic(neighbor);
+                    open_set.push({neighbor, tentative_g_score, f_score});
                 }
             }
         }
     }
-    return {};
+    return {}; // No path found
 }
 
-DynamicAStarSolver::DynamicAStarSolver(const Grid& grid_ref)
-    : Solver(grid_ref, "DynamicAStarSim"), current_mode(EvacuationMode::NORMAL) {}
+// THE FIX: Correct constructor initialization
+ADASolver::ADASolver(const Grid& grid_ref)
+    : Solver(grid_ref, "ADAStar"), epsilon(2.5) {}
 
-void DynamicAStarSolver::assessThreatAndSetMode(const Position& current_pos, const Grid& current_grid) {
+void ADASolver::assessThreatAndSetMode(const Position& current_pos, const Grid& current_grid) {
     const auto& events = current_grid.getConfig().value("dynamic_events", json::array());
     current_mode = EvacuationMode::NORMAL;
 
@@ -91,18 +99,10 @@ void DynamicAStarSolver::assessThreatAndSetMode(const Position& current_pos, con
             }
         }
     }
-
-    int dr[] = {-1, 1, 0, 0};
-    int dc[] = {0, 0, -1, 1};
-    for(int i = 0; i < 4; ++i) {
-        Position neighbor = {current_pos.row + dr[i], current_pos.col + dc[i]};
-        if(current_grid.getSmokeIntensity(neighbor) == "heavy"){
-             if (current_mode != EvacuationMode::PANIC) current_mode = EvacuationMode::ALERT;
-        }
-    }
 }
 
-void DynamicAStarSolver::run() {
+void ADASolver::run() {
+    // THE FIX: Use a local grid copy, consistent with other dynamic solvers
     Cost::current_mode = EvacuationMode::NORMAL;
     Grid dynamic_grid = grid;
     Position current_pos = dynamic_grid.getStartPosition();
@@ -128,7 +128,7 @@ void DynamicAStarSolver::run() {
             break;
         }
 
-        auto path = run_astar(dynamic_grid, current_pos);
+        auto path = run_anytime_astar(dynamic_grid, current_pos, epsilon);
         Position next_move = current_pos;
         std::string action = "STAY";
 
@@ -159,12 +159,12 @@ void DynamicAStarSolver::run() {
     Cost::current_mode = EvacuationMode::NORMAL;
 }
 
-Cost DynamicAStarSolver::getEvacuationCost() const {
+Cost ADASolver::getEvacuationCost() const {
     return total_cost;
 }
 
-void DynamicAStarSolver::generateReport(std::ofstream& report_file) const {
-    report_file << "<h2>Simulation History (Turn-by-Turn using A* Planner)</h2>\n";
+void ADASolver::generateReport(std::ofstream& report_file) const {
+    report_file << "<h2>Simulation History (ADA* Solver)</h2>\n";
     for (const auto& step : history) {
         std::string mode_str;
         switch(step.mode){

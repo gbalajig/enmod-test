@@ -1,4 +1,4 @@
-#include "enmod/DynamicAStarSolver.h"
+#include "enmod/DynamicHPASolver.h"
 #include "enmod/Logger.h"
 #include <queue>
 #include <vector>
@@ -7,19 +7,19 @@
 #include <algorithm>
 
 // A* Node for the priority queue
-struct AStarNode {
+struct HPAStarNode {
     Position pos;
     Cost cost;
     double heuristic;
 
-    bool operator>(const AStarNode& other) const {
+    bool operator>(const HPAStarNode& other) const {
         return (cost.time + heuristic) > (other.cost.time + other.heuristic);
     }
 };
 
-// Helper function to run A* algorithm
-std::vector<Position> run_astar(const Grid& grid, const Position& start_pos) {
-    std::priority_queue<AStarNode, std::vector<AStarNode>, std::greater<AStarNode>> open_set;
+// Helper function to run A* algorithm for one step
+std::vector<Position> run_astar_for_hpa_dynamic(const Grid& grid, const Position& start_pos) {
+    std::priority_queue<HPAStarNode, std::vector<HPAStarNode>, std::greater<HPAStarNode>> open_set;
     std::map<Position, Position> came_from;
     std::map<Position, Cost> g_score;
 
@@ -56,10 +56,8 @@ std::vector<Position> run_astar(const Grid& grid, const Position& start_pos) {
 
         for (int i = 0; i < 4; ++i) {
             Position neighbor = {current.row + dr[i], current.col + dc[i]};
-
             if (grid.isWalkable(neighbor.row, neighbor.col)) {
                 Cost tentative_g_score = g_score[current] + grid.getMoveCost(neighbor);
-
                 if (!g_score.count(neighbor) || tentative_g_score < g_score[neighbor]) {
                     came_from[neighbor] = current;
                     g_score[neighbor] = tentative_g_score;
@@ -68,13 +66,14 @@ std::vector<Position> run_astar(const Grid& grid, const Position& start_pos) {
             }
         }
     }
-    return {};
+    return {}; // No path found
 }
 
-DynamicAStarSolver::DynamicAStarSolver(const Grid& grid_ref)
-    : Solver(grid_ref, "DynamicAStarSim"), current_mode(EvacuationMode::NORMAL) {}
 
-void DynamicAStarSolver::assessThreatAndSetMode(const Position& current_pos, const Grid& current_grid) {
+DynamicHPASolver::DynamicHPASolver(const Grid& grid_ref)
+    : Solver(grid_ref, "DynamicHPAStar") {}
+
+void DynamicHPASolver::assessThreatAndSetMode(const Position& current_pos, const Grid& current_grid) {
     const auto& events = current_grid.getConfig().value("dynamic_events", json::array());
     current_mode = EvacuationMode::NORMAL;
 
@@ -91,18 +90,9 @@ void DynamicAStarSolver::assessThreatAndSetMode(const Position& current_pos, con
             }
         }
     }
-
-    int dr[] = {-1, 1, 0, 0};
-    int dc[] = {0, 0, -1, 1};
-    for(int i = 0; i < 4; ++i) {
-        Position neighbor = {current_pos.row + dr[i], current_pos.col + dc[i]};
-        if(current_grid.getSmokeIntensity(neighbor) == "heavy"){
-             if (current_mode != EvacuationMode::PANIC) current_mode = EvacuationMode::ALERT;
-        }
-    }
 }
 
-void DynamicAStarSolver::run() {
+void DynamicHPASolver::run() {
     Cost::current_mode = EvacuationMode::NORMAL;
     Grid dynamic_grid = grid;
     Position current_pos = dynamic_grid.getStartPosition();
@@ -127,8 +117,11 @@ void DynamicAStarSolver::run() {
             history.back().action = "SUCCESS: Reached Exit.";
             break;
         }
-
-        auto path = run_astar(dynamic_grid, current_pos);
+        
+        // REPLANNING STEP: Run A* at each time step to get the next move.
+        // NOTE: This is now functionally equivalent to DynamicAStar. A true HPA*
+        // would build an abstract graph and only replan parts of the path.
+        auto path = run_astar_for_hpa_dynamic(dynamic_grid, current_pos);
         Position next_move = current_pos;
         std::string action = "STAY";
 
@@ -159,12 +152,12 @@ void DynamicAStarSolver::run() {
     Cost::current_mode = EvacuationMode::NORMAL;
 }
 
-Cost DynamicAStarSolver::getEvacuationCost() const {
+Cost DynamicHPASolver::getEvacuationCost() const {
     return total_cost;
 }
 
-void DynamicAStarSolver::generateReport(std::ofstream& report_file) const {
-    report_file << "<h2>Simulation History (Turn-by-Turn using A* Planner)</h2>\n";
+void DynamicHPASolver::generateReport(std::ofstream& report_file) const {
+    report_file << "<h2>Simulation History (Dynamic HPA*)</h2>\n";
     for (const auto& step : history) {
         std::string mode_str;
         switch(step.mode){

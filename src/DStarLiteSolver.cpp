@@ -113,6 +113,7 @@ void DStarLiteSolver::computeShortestPath() {
 
 
 void DStarLiteSolver::run() {
+    Cost::current_mode = EvacuationMode::NORMAL;
     total_cost = {0, 0, 0};
     history.clear();
 

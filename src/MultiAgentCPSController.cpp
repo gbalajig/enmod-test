@@ -12,17 +12,15 @@ MultiAgentCPSController::MultiAgentCPSController(const json& initial_config, con
 
     std::filesystem::create_directory(report_path + "/agent_io");
 
-    // Initialize agents safely within the grid boundaries
     Position start_pos = master_grid.getStartPosition();
     for (int i = 0; i < num_agents; ++i) {
         Position agent_pos = {start_pos.row + i, start_pos.col};
 
-        // If the calculated position is invalid or blocked, find a new one.
         while (!master_grid.isWalkable(agent_pos.row, agent_pos.col)) {
-            agent_pos.col++; // Try the next column
+            agent_pos.col++;
             if (!master_grid.isValid(agent_pos.row, agent_pos.col)) {
-                agent_pos.col--; // Move back if we went out of bounds
-                agent_pos.row++; // Try the next row
+                agent_pos.col--;
+                agent_pos.row++;
             }
         }
 
@@ -97,15 +95,22 @@ void MultiAgentCPSController::run_simulation() {
                     agent_grid.setCellUnwalkable(other_agent.position);
                 }
             }
-            Direction next_move = solver->getNextMove(agent.position, agent_grid);
+            Direction next_move_dir = solver->getNextMove(agent.position, agent_grid);
+
+            // --- THE FIX: Validate the next position before moving ---
+            Position next_move_pos = master_grid.getNextPosition(agent.position, next_move_dir);
+            if (!master_grid.isWalkable(next_move_pos.row, next_move_pos.col)) {
+                next_move_dir = Direction::STAY; // Stay put if the move is invalid
+            }
+            // --- END FIX ---
 
             json output_data;
             output_data["agent_id"] = agent.id;
             std::string move_str = "STAY";
-            if (next_move == Direction::UP) move_str = "UP";
-            else if (next_move == Direction::DOWN) move_str = "DOWN";
-            else if (next_move == Direction::LEFT) move_str = "LEFT";
-            else if (next_move == Direction::RIGHT) move_str = "RIGHT";
+            if (next_move_dir == Direction::UP) move_str = "UP";
+            else if (next_move_dir == Direction::DOWN) move_str = "DOWN";
+            else if (next_move_dir == Direction::LEFT) move_str = "LEFT";
+            else if (next_move_dir == Direction::RIGHT) move_str = "RIGHT";
             output_data["next_move"] = move_str;
 
             std::ofstream o(report_path + "/agent_io/" + agent.id + "_output_t" + std::to_string(t) + ".json");

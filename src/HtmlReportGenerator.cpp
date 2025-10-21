@@ -77,9 +77,13 @@ void HtmlReportGenerator::generateSummaryReport(const std::vector<Result>& resul
     std::vector<std::string> static_heuristic_solvers = {"AStar"};
     std::vector<std::string> static_rl_solvers = {"QLearning", "SARSA", "ActorCritic"};
     std::vector<std::string> dynamic_dp_solvers = {"DynamicBIDPSim", "DynamicFIDPSim", "DynamicAVISim", "DynamicAPISim"};
-    std::vector<std::string> dynamic_heuristic_solvers = {"DynamicAStarSim", "DStarLiteSim"};
+    std::vector<std::string> dynamic_heuristic_solvers = {"DynamicAStarSim"}; 
     std::vector<std::string> dynamic_rl_solvers = {"DynamicQLearningSim", "DynamicSARSASim", "DynamicActorCriticSim"};
-    std::vector<std::string> hybrid_solvers = {"HybridDPRLSim", "AdaptiveCostSim", "InterlacedSim", "HierarchicalSim", "PolicyBlendingSim"};
+    std::vector<std::string> advanced_heuristic_solvers = {"DynamicHPAStar", "ADASolver", "DStarLiteSim"};
+    std::vector<std::string> deep_rl_solvers = {"DQN"};
+    std::vector<std::string> hybrid_solvers = {"HybridDPRLSim", "AdaptiveCostSim", "InterlacedSim", "HierarchicalSim", "PolicyBlendingSim", "RLEnhancedAStar"};
+
+
 
     report_file << "<table>\n";
     
@@ -135,10 +139,16 @@ void HtmlReportGenerator::generateSummaryReport(const std::vector<Result>& resul
     report_file << "<tr><td colspan='" << (1 + scenarios.size() * 5) << "' class='row-header'>Dynamic Simulators (Heuristic)</td></tr>";
     write_solver_rows(dynamic_heuristic_solvers);
 
+    report_file << "<tr><td colspan='" << (1 + scenarios.size() * 5) << "' class='row-header'>Dynamic Simulators (Advanced Heuristic)</td></tr>";
+    write_solver_rows(advanced_heuristic_solvers);
+
     report_file << "<tr><td colspan='" << (1 + scenarios.size() * 5) << "' class='row-header'>Dynamic Simulators (RL-Based)</td></tr>";
     write_solver_rows(dynamic_rl_solvers);
 
-    report_file << "<tr><td colspan='" << (1 + scenarios.size() * 5) << "' class='row-header'>EnMod-DP Hybrid Approaches</td></tr>";
+    report_file << "<tr><td colspan='" << (1 + scenarios.size() * 5) << "' class='row-header'>Dynamic Simulators (Deep RL)</td></tr>";
+    write_solver_rows(deep_rl_solvers);
+
+    report_file << "<tr><td colspan='" << (1 + scenarios.size() * 5) << "' class='row-header'>EnMod-DP Hybrid Solvers</td></tr>";
     write_solver_rows(hybrid_solvers);
 
     report_file << "</tbody></table>\n";
