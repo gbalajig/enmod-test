@@ -13,6 +13,7 @@ set(SOURCES
     src/Policy.cpp
     src/HtmlReportGenerator.cpp
     src/Cost.cpp
+   # src/EnvironmentAssessment.cpp
     # DP Solvers
     src/BIDP.cpp
     src/FIDP.cpp
@@ -46,6 +47,10 @@ set(SOURCES
     src/AStarSolver.cpp
     src/DynamicAStarSolver.cpp
     src/DStarLiteSolver.cpp
+    src/RLEnhancedAStarSolver.cpp
+    src/DynamicHPASolver.cpp
+    src/ADASolver.cpp
+    src/DQNSolver.cpp
 )
 
 add_executable(enmod_app ${SOURCES})
