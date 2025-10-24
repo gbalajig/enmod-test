@@ -126,6 +126,7 @@ int main() {
         std::vector<json> scenarios;
       //  scenarios.push_back(ScenarioGenerator::generate(5, "5x5"));
         scenarios.push_back(ScenarioGenerator::generate(10, "10x10"));
+        scenarios.push_back(ScenarioGenerator::generate(10, "15x15"));
         scenarios.push_back(ScenarioGenerator::generate(20, "20x20"));
         scenarios.push_back(ScenarioGenerator::generate(30, "30x30"));
      //   scenarios.push_back(ScenarioGenerator::generate(40, "40x40"));
